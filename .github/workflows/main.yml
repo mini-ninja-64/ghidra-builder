@@ -9,11 +9,6 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  schedule:
-    # Daily
-    - cron: '0 8 * * *'
-    # Every 3 days
-    #- cron: '0 0 */3 * *'
 
 env:
   GRADLE_VERSION: 9.1.0
@@ -26,14 +21,11 @@ jobs:
       fail-fast: false
       matrix:
         platform:
-          - os: 'ubuntu-latest'
-            dependency_script: "sudo apt-get update && sudo apt-get install -y bison flex"
-          - os: 'macos-latest'
-            dependency_script: "brew install bison flex curl"
           - os: 'windows-latest'
             dependency_script: |
               choco install visualstudio2017buildtools
               choco install winflexbison
+              choco install python
               ren "C:\ProgramData\chocolatey\bin\win_bison.exe" "bison.exe"
               ren "C:\ProgramData\chocolatey\bin\win_flex.exe" "flex.exe"
               
@@ -55,55 +47,45 @@ jobs:
       
       - name: "Clone Ghidra"
         run: git clone -b "${{ matrix.ghidra.ref }}" "https://github.com/NationalSecurityAgency/ghidra.git" ghidra
-      #- name: "Apply patches"
-      #  run: git apply ../patches/*
-      #  working-directory: ./ghidra
+
       - name: "Recent history"
         run: git log --oneline -n 15
         working-directory: ./ghidra
-        
-      #- name: Setup tmate session
-      #  uses: mxschmitt/action-tmate@v3
 
-      # Cache dependencies' downloading
-      - name: "Precreate download dir"
-        run: mkdir -p ghidra/dependencies/downloads
-      - name: "Restore Dependencies Cache"
-        uses: actions/cache@v4.3.0
-        with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: ./ghidra/dependencies/downloads
-          # An explicit key for restoring and saving the cache
-          key: "${{ matrix.ghidra.version }}-${{ matrix.platform.os }}-ghdepends"
       - name: "Fetch dependencies"
-        uses: eskatos/gradle-command-action@v1
-        with:
-          wrapper-cache-enabled: false
-          dependencies-cache-enabled: false
-          configuration-cache-enabled: false
-          build-root-directory: ghidra
-          gradle-version: ${{ env.GRADLE_VERSION }}
-          arguments: --console plain --quiet --init-script gradle/support/fetchDependencies.gradle init
+        run: ./gradlew.bat --init-script gradle/support/fetchDependencies.gradle 
+        working-directory: ./ghidra
+
+      - name: "Fetch dependencies"
+        run: ./gradlew.bat prepdev
+        working-directory: ./ghidra
+
+      - name: "Building natives"
+        run: ./gradlew.bat buildNatives
+        working-directory: ./ghidra
+
+      - name: "Compiling sleigh files"
+        run: ./gradlew.bat sleighCompile
+        working-directory: ./ghidra
+
+      - name: "Building Python3 packages"
+        run: ./gradlew.bat buildPyPackage
+        working-directory: ./ghidra
+
+      - name: "Assemble ghidra"
+        run: ./gradlew.bat assembleAll
+        working-directory: ./ghidra
       
       - name: "Building Ghidra ${{ matrix.ghidra.version }} from ${{ matrix.ghidra.ref }}"
-        uses: eskatos/gradle-command-action@v1
-        with:
-          wrapper-cache-enabled: false
-          dependencies-cache-enabled: false
-          configuration-cache-enabled: false
-          build-root-directory: ghidra
-          gradle-version: ${{ env.GRADLE_VERSION }}
-          arguments: --console plain --quiet buildGhidra
-      
+        run: ./gradlew.bat buildGhidra
+        working-directory: ./ghidra
+
       - name: "Upload package"
         uses: NyaMisty/upload-artifact@nightly
         with:
           name: "Ghidra_${{ matrix.ghidra.version }}_${{ matrix.platform.os }}"
           path: "ghidra/build/dist/*.zip"
-      #- name: "Upload package"
-      #  uses: NyaMisty/upload-artifact-as-is@nightly
-      #  with:
-      #    path: ghidra/build/dist/
+
   deploy:
     name: 'Push to Release'
     if: always()
