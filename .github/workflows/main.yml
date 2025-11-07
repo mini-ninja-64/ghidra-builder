@@ -16,8 +16,8 @@ on:
     #- cron: '0 0 */3 * *'
 
 env:
-  GRADLE_VERSION: 7.5.1
-  JAVA_VERSION: '17'
+  GRADLE_VERSION: 9.1.0
+  JAVA_VERSION: '21'
 
 jobs:
   build:
