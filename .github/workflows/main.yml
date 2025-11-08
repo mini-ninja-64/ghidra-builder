@@ -81,7 +81,7 @@ jobs:
         working-directory: ./ghidra
 
       - name: "Upload package"
-        uses: NyaMisty/upload-artifact@nightly
+        uses: actions/upload-artifact@v4
         with:
           name: "Ghidra_${{ matrix.ghidra.version }}_${{ matrix.platform.os }}"
           path: "ghidra/build/dist/*.zip"
